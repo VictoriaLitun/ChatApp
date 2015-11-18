@@ -1,0 +1,19 @@
+package chatapp;
+
+public class Command {
+
+	static enum CommandType {
+		ACCEPT, DISCONNECT, MESSAGE, NICK, REJECT
+	}
+
+	private CommandType type;
+
+	public Command(CommandType t) {
+		type = t;
+	}
+
+	public String toString() {
+		return type.toString();
+	}
+
+}
