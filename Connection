@@ -1,0 +1,96 @@
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.net.Socket;
+import java.util.HashMap;
+import java.util.Scanner;
+
+public class Connection {
+
+	final static int PORT = 28411;
+	final static String ChatApp = "ChatApp";
+	final static String CODE = "UTF-8";
+	private Socket socket;
+
+	public Connection(Socket socket) {
+		this.socket = socket;
+	}
+
+	public void sendNickHello(String nick) throws IOException {
+		socket.getOutputStream().write(
+				(ChatApp + " user " + nick + "\n").getBytes(CODE));
+		socket.getOutputStream().flush();
+	}
+
+	public void sendNickBusy(String nick) throws IOException {
+		socket.getOutputStream().write(
+				(ChatApp + " user " + nick + " busy\n").getBytes(CODE));
+		socket.getOutputStream().flush();
+	}
+
+	public void accept() throws IOException {
+		socket.getOutputStream().write("Accepted\n".getBytes(CODE));
+		socket.getOutputStream().flush();
+	}
+
+	public void reject() throws IOException {
+		socket.getOutputStream().write("Rejected\n".getBytes(CODE));
+		socket.getOutputStream().flush();
+	}
+
+	public void sendMessage(String message) throws IOException {
+		socket.getOutputStream().write("Message\n".getBytes(CODE));
+		socket.getOutputStream().write((message + "\n").getBytes(CODE));
+		socket.getOutputStream().flush();
+	}
+
+	public void disconnect() throws IOException {
+		socket.getOutputStream().write("Disconnect\n".getBytes(CODE));
+		socket.getOutputStream().flush();
+	}
+
+	public Command receive() throws IOException {
+		@SuppressWarnings("resource")
+		Scanner in = new Scanner(new BufferedInputStream(
+				socket.getInputStream()));
+		String line = in.nextLine();
+
+		if (line.contains(" ") && line.startsWith(ChatApp)) {
+
+			Boolean busy = line.toLowerCase().endsWith(" busy");
+			String nick;
+
+			if (busy)
+				nick = line.substring(line.indexOf(" user ") + 1,
+						line.indexOf(" busy"));
+			else
+				nick = line.substring(line.lastIndexOf(" ") + 1, line.length());
+
+			return new NickCommand(ChatApp, nick, busy);
+
+		} else if (COMMAND_HASH_MAP.containsKey(line.toLowerCase())) {
+
+			if (line.toUpperCase().equals(
+					Command.CommandType.MESSAGE.toString())) {
+
+				line = in.nextLine();
+				return new MessageCommand(line);
+
+			} else
+				return COMMAND_HASH_MAP.get(line.toLowerCase());
+
+		} else
+			return null;
+
+	}
+
+	static final HashMap<String, Command> COMMAND_HASH_MAP = new HashMap<String, Command>() {
+		
+		{
+			put("accepted", new Command(Command.CommandType.ACCEPT));
+			put("disconnect", new Command(Command.CommandType.DISCONNECT));
+			put("message", new Command(Command.CommandType.MESSAGE));
+			put(ChatApp, new Command(Command.CommandType.NICK));
+			put("rejected", new Command(Command.CommandType.REJECT));
+		}
+	};
+}
