@@ -1,85 +1,128 @@
-package chatapp;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Observable;
+import java.util.Observer;
 
-public class CallListenerThread extends Observable implements Runnable {
-	private CallListener call;
-	private volatile boolean isClose;
-	private Caller.CallStatus callStatus;
-	private Thread t;
+public class CallListenerThread implements Runnable {
+    private CallListener call;
+    private volatile boolean isClose;
+    private Thread t;
+    private volatile boolean  isReceive, flag;
 
-	public CallListenerThread() {
-		t = new Thread(this);
-		isClose = false;
-		t.start();
-	}
+    private Observable myObservable = new Observable(){
+        public void notifyObservers(Object arg) {
+            setChanged();
+            super.notifyObservers(arg);
+        }
+    };
 
-	public CallListenerThread(CallListener call) {
-		this.call = call;
-		t = new Thread(this);
-		isClose = false;
-		t.start();
-	}
+    public CallListenerThread(){
+        t = new Thread(this);
+        isClose = false;
+        t.start();
+    }
 
-	public SocketAddress getListenAddress() throws IOException {
-		return call.getListenAddress();
-	}
+    public CallListenerThread(CallListener call){
+        this.call = call;
+        t = new Thread(this);
+        isClose = false;
+        t.start();
+    }
 
-	public String getLocalNick() {
-		return call.getLocalNick();
-	}
+    public SocketAddress getListenAddress(){
+        return call.getListenAddress();
+    }
 
-	public SocketAddress getRemoteAddress() {
-		return call.getRemoteAddress();
-	}
+    public String getLocalNick (){
+        return call.getLocalNick();
+    }
 
-	public boolean isBusy() {
-		return call.isBusy();
-	}
+    public SocketAddress getRemoteAddress(){
+        return null; 
+    }
 
-	public void setBusy(boolean isBusy) {
-		call.setBusy(isBusy);
-	}
+    public boolean isBusy (){
+        return call.isBusy();
+    }
 
-	public void setListenAddress(InetSocketAddress newAddress) {
-		call.setListenAddress(newAddress);
-	}
+    public void setBusy (boolean isBusy){
+        call.setBusy(isBusy);
+    }
 
-	public void setLocalNick(String newNick) {
-		call.setLocalNick(newNick);
-	}
+    public void setListenAddress(InetSocketAddress newAddress){
+        call.setListenAddress(newAddress);
+    }
 
-	public void run() {
-		while (!isClose) {
-			try {
-				Connection c = call.getConnection();
-				if (c == null)
-					setCallStatus(Caller.CallStatus.BUSY);
-				else
-					setCallStatus(Caller.CallStatus.OK);
+    public void setLocalNick (String newNick){
+        call.setLocalNick(newNick);
+    }
 
-			} catch (IOException e) {
-				setCallStatus(Caller.CallStatus.REJECTED);
-			}
+    public void run() {
+        while (!isClose) {
+            try {
+                System.out.println("Before");
+                Connection connection = call.getConnection();
+                System.out.println("Get");
+                myObservable.notifyObservers(call);
+                waitAnswer();
+                System.out.println("continued");
 
-			setChanged();
-			notifyObservers();
+                if (!isReceive) {
+                    call.setBusy(false);
+                    System.out.println("False");
+                    if (connection == null) {
+                    }
+                    else {
+                        connection.reject();
+                    }
+                }
+                else{
+                    System.out.println("OK");
+                    connection.accept();
+                    myObservable.notifyObservers(connection);
 
-		}
-	}
+                    CommandListenerThread commandListenerThread = new CommandListenerThread(connection);
+                    commandListenerThread.addObserver(MainForm.window);
+                }
 
-	public void stop() {
-		isClose = true;
-	}
+            } catch (IOException e) {
+            }
+        }
+    }
 
-	public Caller.CallStatus getCallStatus() {
-		return callStatus;
-	}
+    public void stop(){
+        isClose = true;
+    }
 
-	public void setCallStatus(Caller.CallStatus callStatus) {
-		this.callStatus = callStatus;
-	}
+    public void setReceive(boolean isReceive){
+        this.isReceive = isReceive;
+    }
+
+    public void suspend(){
+        flag = false;
+    }
+
+    private synchronized void waitAnswer(){
+        if (!flag) {
+            try {
+                wait();
+            } catch (InterruptedException e) {
+                System.out.println(t + " Thread interrupted: " + e);
+            }
+        }
+    }
+
+    public synchronized void resume(){
+        flag = true;
+        notify();
+    }
+
+    public void addObserver(Observer observer){
+        myObservable.addObserver(observer);
+    }
+
+    public String getRemoteNick (){
+        return call.getRemoteNick();
+    }
 }
